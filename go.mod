@@ -1,6 +1,6 @@
 module go.codycody31.dev/nano64
 
-go 1.25.1
+go 1.23.0
 
 require modernc.org/sqlite v1.39.0
 
