@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.codycody31.dev/nano64"
+	"go.codycody31.dev/nano64/v1"
 )
 
 func main() {

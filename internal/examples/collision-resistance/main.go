@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.codycody31.dev/nano64"
+	"go.codycody31.dev/nano64/v1"
 )
 
 // formatNumberWithCommas formats a number with comma separators for readability
