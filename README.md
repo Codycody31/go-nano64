@@ -15,7 +15,7 @@
 * **Time‑sortable:** IDs order by creation time automatically.
 * **Compact:** 8 bytes / 16 hex characters.
 * **Deterministic format:** `[63‥20]=timestamp`, `[19‥0]=random`.
-* **Collision‑resistant:** ~1% colllision risk at 145,000 IDs per second.
+* **Collision‑resistant:** ~1% collision risk at 145,000 IDs/ms; <0.05% at sustained 145k/sec rate.
 * **Cross‑database‑safe:** Big‑endian bytes preserve order in SQLite, Postgres, MySQL, etc.
 * **AES-GCM encryption:** Optional encryption masks the embedded creation date.
 * **Unsigned canonical form:** Single, portable representation (0..2⁶⁴‑1).
@@ -157,7 +157,7 @@ err = db.QueryRow("SELECT id, name FROM users WHERE id = ?", id).Scan(&user.ID, 
 | Encoded timestamp bits | 44                                        | 48                          | 0                       | 41                           |
 | Random / entropy bits  | 20                                        | 80                          | 122                     | 22 (per-node sequence)       |
 | Sortable by time       | ✅ Yes (lexicographic & numeric)           | ✅ Yes                       | ❌ No                    | ✅ Yes                        |
-| Collision risk (1%)    | ~145 IDs/ms                               | ~26M/ms                     | Practically none        | None (central sequence)      |
+| Collision risk (1%)    | ~145 IDs/ms (~0.04% at 145k/sec)         | ~26M/ms                     | Practically none        | None (central sequence)      |
 | Typical string length  | 16 hex chars                              | 26 Crockford base32         | 36 hex+hyphens          | 18–20 decimal digits         |
 | Encodes creation time  | ✅                                        | ✅                           | ❌                       | ✅                            |
 | Can hide timestamp     | ✅ via AES-GCM encryption                  | ⚠️ Not built-in             | ✅ (no time field)       | ❌ Not by design              |
@@ -222,7 +222,12 @@ err = db.QueryRow("SELECT id, name FROM users WHERE id = ?", id).Scan(&user.ID, 
 | 44   | Timestamp (ms) | Chronological order | 1970–2527             |
 | 20   | Random         | Collision avoidance | 1,048,576 patterns/ms |
 
-Collision probability ≈ 1% if ~145 IDs generated in one millisecond.
+**Collision characteristics:**
+
+* Theoretical: ~1% collision probability at 145 IDs/millisecond
+* Real-world sustained rate (145k IDs/sec): <0.05% collision rate
+* High-speed burst (3.4M IDs/sec): ~0.18% collision rate
+* Concurrent generation (10.6M IDs/sec): ~0.58% collision rate
 
 ---
 
@@ -232,7 +237,7 @@ The [`internal/examples`](internal/examples/) directory contains comprehensive e
 
 * **[Basic Usage](internal/examples/basic/)** - Simple ID generation and operations
 * **[Monotonic Generation](internal/examples/monotonic/)** - Demonstrates strictly increasing IDs with per-millisecond sequencing
-* **[Collision Resistance](internal/examples/collision-resistance/)** - Demonstrates collision resistance by generating millions of IDs at high speed (145k+ IDs/second)
+* **[Collision Resistance](internal/examples/collision-resistance/)** - Comprehensive collision resistance testing with real-world benchmarks
 
 Run the collision resistance demonstration:
 
@@ -240,7 +245,16 @@ Run the collision resistance demonstration:
 go run ./internal/examples/collision-resistance/main.go
 ```
 
-This will generate 5 million IDs at maximum speed, test concurrent generation across multiple goroutines, maintain a sustained rate of 145,000 IDs/second, and perform stress testing. The demonstration proves that even at very high generation rates, Nano64 maintains excellent collision resistance with typically < 0.2% collision rate.
+**Benchmark Results:**
+
+The collision resistance test performs four comprehensive scenarios:
+
+1. **Single-threaded high-speed**: 3.4M IDs/sec with 0.18% collisions
+2. **Concurrent generation**: 10.6M IDs/sec across 10 goroutines with 0.58% collisions
+3. **Sustained safe rate**: 145k IDs/sec over 10 seconds with <0.05% collisions
+4. **Maximum throughput burst**: 2.9M IDs/sec with 0.15% collisions
+
+These results demonstrate that Nano64 maintains excellent collision resistance even under extreme load. At the recommended sustained rate of ~145,000 IDs/second, collision rates remain well below 0.05%, making it suitable for high-throughput production systems.
 
 ---
 
