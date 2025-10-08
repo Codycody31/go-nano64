@@ -8,27 +8,20 @@
 
 > **Note:** This is a Go port of the original [Nano64 TypeScript/JavaScript library](https://github.com/only-cliches/nano64) by [@only-cliches](https://github.com/only-cliches). All credit for the original concept, design, and implementation goes to the original author. This port aims to bring the same powerful, compact ID generation capabilities to the Go ecosystem.
 
----
-
 ## Features
 
 * **Time‑sortable:** IDs order by creation time automatically.
 * **Compact:** 8 bytes / 16 hex characters.
 * **Deterministic format:** `[63‥20]=timestamp`, `[19‥0]=random`.
-* **Collision‑resistant:** ~1% collision risk at 145,000 IDs/ms; <0.05% at sustained 145k/sec rate.
 * **Cross‑database‑safe:** Big‑endian bytes preserve order in SQLite, Postgres, MySQL, etc.
 * **AES-GCM encryption:** Optional encryption masks the embedded creation date.
 * **Unsigned canonical form:** Single, portable representation (0..2⁶⁴‑1).
-
----
 
 ## Installation
 
 ```bash
 go get go.codycody31.dev/nano64
 ```
-
----
 
 ## Usage
 
@@ -147,8 +140,6 @@ err = db.QueryRow("SELECT id, name FROM users WHERE id = ?", id).Scan(&user.ID, 
 | CockroachDB | `BYTES` (8)       | ✅              | Bytewise ordering.                                                     |
 | DuckDB      | `BLOB` (8)        | ✅              | Bytewise ordering.                                                     |
 
----
-
 ## Comparison with other identifiers
 
 | Property               | **Nano64**                                | **ULID**                    | **UUIDv4**              | **Snowflake ID**             |
@@ -165,8 +156,6 @@ err = db.QueryRow("SELECT id, name FROM users WHERE id = ?", id).Scan(&user.ID, 
 | Cryptographic strength | 20-bit random, optional AES               | 80-bit random               | 122-bit random          | None (deterministic)         |
 | Dependencies           | None (crypto optional)                    | None                        | None                    | Central service or worker ID |
 | Target use             | Compact, sortable, optionally private IDs | Human-readable sortable IDs | Pure random identifiers | Distributed service IDs      |
-
----
 
 ## API Summary
 
@@ -213,8 +202,6 @@ err = db.QueryRow("SELECT id, name FROM users WHERE id = ?", id).Scan(&user.ID, 
 * **`factory.FromEncryptedHex(hex string) (*EncryptedNano64, error)`** - Decrypt from hex
 * **`factory.FromEncryptedBytes(bytes []byte) (*EncryptedNano64, error)`** - Decrypt from bytes
 
----
-
 ## Design
 
 | Bits | Field          | Purpose             | Range                 |
@@ -228,8 +215,6 @@ err = db.QueryRow("SELECT id, name FROM users WHERE id = ?", id).Scan(&user.ID, 
 * Real-world sustained rate (145k IDs/sec): <0.05% collision rate
 * High-speed burst (3.4M IDs/sec): ~0.18% collision rate
 * Concurrent generation (10.6M IDs/sec): ~0.58% collision rate
-
----
 
 ## Examples
 
@@ -254,10 +239,6 @@ The collision resistance test performs four comprehensive scenarios:
 3. **Sustained safe rate**: 145k IDs/sec over 10 seconds with <0.05% collisions
 4. **Maximum throughput burst**: 2.9M IDs/sec with 0.15% collisions
 
-These results demonstrate that Nano64 maintains excellent collision resistance even under extreme load. At the recommended sustained rate of ~145,000 IDs/second, collision rates remain well below 0.05%, making it suitable for high-throughput production systems.
-
----
-
 ## Tests
 
 Run:
@@ -275,14 +256,6 @@ All unit tests cover:
 * Overflow edge cases
 * Database driver.Valuer and sql.Scanner interfaces
 
----
-
 ## License
 
 MIT License
-
----
-
-## Keywords
-
-nano64, ulid, time-sortable, 64-bit id, bigint, aes-gcm, uid, uuid alternative, distributed id, database key, monotonic id, sortable id, crypto id, go, golang, timestamp id
