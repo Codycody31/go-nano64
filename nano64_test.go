@@ -2,6 +2,7 @@ package nano64
 
 import (
 	"database/sql"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -283,13 +284,13 @@ func TestNano64_Value(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   uint64
-		want    int64
+		want    []byte
 		wantErr bool
 	}{
-		{"zero", 0, 0, false},
-		{"positive", 12345, 12345, false},
-		{"max int64", 0x7FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF, false},
-		{"large value", 0x123456789ABCDEF0, int64(0x123456789ABCDEF0), false},
+		{"zero", 0, []byte{0, 0, 0, 0, 0, 0, 0, 0}, false},
+		{"positive", 12345, []byte{0, 0, 0, 0, 0, 0, 0x30, 0x39}, false},
+		{"large value", 0x123456789ABCDEF0, []byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0}, false},
+		{"max", ^uint64(0), []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, false},
 	}
 
 	for _, tt := range tests {
@@ -301,13 +302,20 @@ func TestNano64_Value(t *testing.T) {
 				return
 			}
 			if !tt.wantErr {
-				gotInt64, ok := got.(int64)
+				gotBytes, ok := got.([]byte)
 				if !ok {
-					t.Errorf("Value() returned type %T, want int64", got)
+					t.Errorf("Value() returned type %T, want []byte", got)
 					return
 				}
-				if gotInt64 != tt.want {
-					t.Errorf("Value() = %d, want %d", gotInt64, tt.want)
+				if len(gotBytes) != len(tt.want) {
+					t.Errorf("Value() returned %d bytes, want %d", len(gotBytes), len(tt.want))
+					return
+				}
+				for i := range gotBytes {
+					if gotBytes[i] != tt.want[i] {
+						t.Errorf("Value() = %v, want %v", gotBytes, tt.want)
+						break
+					}
 				}
 			}
 		})
@@ -414,6 +422,107 @@ func TestNano64_Scan_BytesRoundtrip(t *testing.T) {
 			// Compare
 			if scanned.Uint64Value() != original.Uint64Value() {
 				t.Errorf("bytes roundtrip failed: %d != %d", scanned.Uint64Value(), original.Uint64Value())
+			}
+		})
+	}
+}
+
+func TestNano64_MarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   uint64
+		want    string
+		wantErr bool
+	}{
+		{"zero", 0, `"00000000000-00000"`, false},
+		{"small", 12345, `"00000000000-03039"`, false},
+		{"large", 0x123456789ABCDEF0, `"123456789AB-CDEF0"`, false},
+		{"max timestamp", 0x0FFFFFFFFFFF << 20, `"FFFFFFFFFFF-00000"`, false},
+		{"max random", 0xFFFFF, `"00000000000-FFFFF"`, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := New(tt.value)
+			got, err := json.Marshal(id)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("MarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && string(got) != tt.want {
+				t.Errorf("MarshalJSON() = %s, want %s", string(got), tt.want)
+			}
+		})
+	}
+}
+
+func TestNano64_UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		json    string
+		want    uint64
+		wantErr bool
+	}{
+		{"hex string zero", `"00000000000-00000"`, 0, false},
+		{"hex string small", `"00000000000-03039"`, 12345, false},
+		{"hex string large", `"123456789AB-CDEF0"`, 0x123456789ABCDEF0, false},
+		{"hex string no dash", `"0000000000003039"`, 12345, false},
+		{"hex string lowercase", `"00000000000-03039"`, 12345, false},
+		{"numeric zero", `0`, 0, false},
+		{"numeric small", `12345`, 12345, false},
+		{"numeric large", `1311768467463790320`, 0x123456789ABCDEF0, false},
+		{"invalid hex", `"ZZZZ"`, 0, true},
+		{"invalid type", `true`, 0, true},
+		{"invalid object", `{}`, 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var id Nano64
+			err := json.Unmarshal([]byte(tt.json), &id)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("UnmarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && id.Uint64Value() != tt.want {
+				t.Errorf("UnmarshalJSON() value = %d, want %d", id.Uint64Value(), tt.want)
+			}
+		})
+	}
+}
+
+func TestNano64_JSON_Roundtrip(t *testing.T) {
+	tests := []struct {
+		name  string
+		value uint64
+	}{
+		{"zero", 0},
+		{"small", 12345},
+		{"large", 0x123456789ABCDEF0},
+		{"max", ^uint64(0)},
+		{"generated", func() uint64 { id, _ := GenerateDefault(); return id.Uint64Value() }()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original := New(tt.value)
+
+			// Marshal to JSON
+			jsonData, err := json.Marshal(original)
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+
+			// Unmarshal back
+			var decoded Nano64
+			err = json.Unmarshal(jsonData, &decoded)
+			if err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+
+			// Compare
+			if decoded.Uint64Value() != original.Uint64Value() {
+				t.Errorf("JSON roundtrip failed: %d != %d", decoded.Uint64Value(), original.Uint64Value())
 			}
 		})
 	}

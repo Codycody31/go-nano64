@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql/driver"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -92,9 +93,9 @@ func (n Nano64) Uint64Value() uint64 {
 }
 
 // Value implements the driver.Valuer interface for SQL database support.
-// Returns the ID as an int64 for storage in SQL databases.
+// Returns the ID as a byte slice for storage in SQL databases as BYTEA.
 func (n Nano64) Value() (driver.Value, error) {
-	return int64(n.value), nil
+	return n.ToBytes(), nil
 }
 
 // Scan implements the sql.Scanner interface for SQL database support.
@@ -125,6 +126,35 @@ func (n *Nano64) Scan(value interface{}) error {
 	default:
 		return fmt.Errorf("cannot scan type %T into Nano64", value)
 	}
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// Encodes the Nano64 as a hex string in JSON.
+func (n Nano64) MarshalJSON() ([]byte, error) {
+	return json.Marshal(n.ToHex())
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// Accepts either a hex string or a numeric value from JSON.
+func (n *Nano64) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string first (hex format)
+	var hexStr string
+	if err := json.Unmarshal(data, &hexStr); err == nil {
+		parsed, err := FromHex(hexStr)
+		if err != nil {
+			return fmt.Errorf("failed to parse hex string: %w", err)
+		}
+		*n = parsed
+		return nil
+	}
+
+	// Try to unmarshal as number
+	var num uint64
+	if err := json.Unmarshal(data, &num); err != nil {
+		return fmt.Errorf("failed to unmarshal Nano64: expected hex string or number")
+	}
+	*n = Nano64{value: num}
+	return nil
 }
 
 // GetTimestamp extracts the embedded UNIX-epoch milliseconds from the ID.
