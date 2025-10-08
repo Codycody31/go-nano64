@@ -25,7 +25,7 @@
 ## Installation
 
 ```bash
-go get go.codycody31.dev/nano64/v1
+go get go.codycody31.dev/nano64
 ```
 
 ---
@@ -37,7 +37,7 @@ go get go.codycody31.dev/nano64/v1
 ```go
 import (
     "fmt"
-    "go.codycody31.dev/nano64/v1"
+    "go.codycody31.dev/nano64"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func main() {
     if err != nil {
         panic(err)
     }
-    
+
     fmt.Println(id.ToHex())        // 17‑char uppercase hex TIMESTAMP-RANDOM
     // 199C01B6659-5861C
     fmt.Println(id.ToBytes())      // [8]byte
@@ -78,7 +78,7 @@ fmt.Println(nano64.Compare(a, b)) // -1
 IDs can easily be encrypted and decrypted to mask their timestamp value from public view.
 
 ```go
-import "go.codycody31.dev/nano64/v1"
+import "go.codycody31.dev/nano64"
 
 // Create encryption key (32 bytes for AES-256)
 key := make([]byte, 32)
@@ -117,7 +117,7 @@ Store `id.ToBytes()` as an **8‑byte big‑endian binary** value, or use the bu
 ```go
 import (
     "database/sql"
-    "go.codycody31.dev/nano64/v1"
+    "go.codycody31.dev/nano64"
 )
 
 type User struct {
