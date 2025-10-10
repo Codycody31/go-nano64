@@ -79,10 +79,13 @@ if _, err := rand.Read(key); err != nil {
     panic(err)
 }
 
-factory := nano64.NewEncryptedFactory(key)
+config, err := nano64.NewEncryptedIDConfig(key, nil, nil)
+if err != nil {
+    panic(err)
+}
 
 // Generate and encrypt
-wrapped, err := factory.GenerateEncrypted()
+wrapped, err := config.GenerateEncryptedNow()
 if err != nil {
     panic(err)
 }
@@ -93,7 +96,7 @@ fmt.Println(wrapped.ToEncryptedHex())     // 72‑char hex payload
 // 2D5CEBF218C569DDE077C4C1F247C708063BAA93B4285CD67D53327EA4C374A64395CFF0
 
 // Decrypt later
-restored, err := factory.FromEncryptedHex(wrapped.ToEncryptedHex())
+restored, err := config.FromEncryptedHex(wrapped.ToEncryptedHex())
 if err != nil {
     panic(err)
 }
@@ -196,11 +199,12 @@ err = db.QueryRow("SELECT id, name FROM users WHERE id = ?", id).Scan(&user.ID, 
 
 ### Encrypted IDs
 
-* **`NewEncryptedFactory(key []byte) *EncryptedFactory`** - Create factory with 32-byte AES-256 key
-* **`factory.GenerateEncrypted() (*EncryptedNano64, error)`** - Generate and encrypt ID
-* **`factory.Encrypt(id Nano64) (*EncryptedNano64, error)`** - Encrypt existing ID
-* **`factory.FromEncryptedHex(hex string) (*EncryptedNano64, error)`** - Decrypt from hex
-* **`factory.FromEncryptedBytes(bytes []byte) (*EncryptedNano64, error)`** - Decrypt from bytes
+* **`NewEncryptedIDConfig(key []byte, clock Clock, rng RNG) (*EncryptedIDConfig, error)`** - Create config with AES key (16, 24, or 32 bytes), optional clock and RNG
+* **`config.GenerateEncrypted(timestamp int64) (*EncryptedNano64, error)`** - Generate and encrypt ID with specified timestamp
+* **`config.GenerateEncryptedNow() (*EncryptedNano64, error)`** - Generate and encrypt ID with current timestamp
+* **`config.Encrypt(id Nano64) (*EncryptedNano64, error)`** - Encrypt existing ID
+* **`config.FromEncryptedHex(hex string) (*EncryptedNano64, error)`** - Decrypt from hex
+* **`config.FromEncryptedBytes(bytes []byte) (*EncryptedNano64, error)`** - Decrypt from bytes
 
 ## Design
 
