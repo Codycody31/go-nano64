@@ -31,6 +31,11 @@ const (
 	maxTimestamp = timestampMask
 )
 
+var (
+	// Nil is the zero value for Nano64. It represents an uninitialized or invalid ID.
+	Nil = Nano64{value: 0}
+)
+
 // RNG is a function type for entropy source that returns `bits` random bits (1..32).
 type RNG func(bits int) (uint32, error)
 
@@ -87,6 +92,13 @@ func New(value uint64) Nano64 {
 	return Nano64{value: value}
 }
 
+// NullNano64 represents a Nano64 that may be null.
+// NullNano64 implements the Scanner and Valuer interfaces so it can be used as a nullable database field.
+type NullNano64 struct {
+	ID    Nano64
+	Valid bool // Valid is true if ID is not NULL
+}
+
 // Uint64Value returns the unsigned 64-bit integer value.
 func (n Nano64) Uint64Value() uint64 {
 	return n.value
@@ -126,6 +138,45 @@ func (n *Nano64) Scan(value interface{}) error {
 	default:
 		return fmt.Errorf("cannot scan type %T into Nano64", value)
 	}
+}
+
+// Value implements the driver.Valuer interface for NullNano64.
+func (n NullNano64) Value() (driver.Value, error) {
+	if !n.Valid {
+		return nil, nil
+	}
+	return n.ID.Value()
+}
+
+// Scan implements the sql.Scanner interface for NullNano64.
+func (n *NullNano64) Scan(value interface{}) error {
+	if value == nil {
+		n.ID = Nil
+		n.Valid = false
+		return nil
+	}
+	n.Valid = true
+	return n.ID.Scan(value)
+}
+
+// MarshalJSON implements the json.Marshaler interface for NullNano64.
+func (n NullNano64) MarshalJSON() ([]byte, error) {
+	if !n.Valid {
+		return []byte("null"), nil
+	}
+	return n.ID.MarshalJSON()
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for NullNano64.
+func (n *NullNano64) UnmarshalJSON(data []byte) error {
+	// Check for null
+	if string(data) == "null" {
+		n.Valid = false
+		n.ID = Nil
+		return nil
+	}
+	n.Valid = true
+	return n.ID.UnmarshalJSON(data)
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -289,6 +340,11 @@ func Compare(a, b Nano64) int {
 // Equals checks equality by unsigned value.
 func (n Nano64) Equals(other Nano64) bool {
 	return Compare(n, other) == 0
+}
+
+// IsNil returns true if the ID is the zero value (Nil).
+func (n Nano64) IsNil() bool {
+	return n.value == 0
 }
 
 // String returns a string representation for debugging.

@@ -1570,3 +1570,245 @@ func TestDefaultRNG_BitsMask(t *testing.T) {
 		}
 	}
 }
+
+func TestNil(t *testing.T) {
+	// Test that Nil is zero value
+	if Nil.Uint64Value() != 0 {
+		t.Errorf("Nil.Uint64Value() = %d, want 0", Nil.Uint64Value())
+	}
+
+	// Test IsNil on Nil constant
+	if !Nil.IsNil() {
+		t.Error("Nil.IsNil() = false, want true")
+	}
+
+	// Test IsNil on non-nil ID
+	id, err := GenerateDefault()
+	if err != nil {
+		t.Fatalf("GenerateDefault() error = %v", err)
+	}
+	if id.IsNil() {
+		t.Error("generated ID.IsNil() = true, want false")
+	}
+
+	// Test IsNil on zero-constructed ID
+	zero := Nano64{}
+	if !zero.IsNil() {
+		t.Error("zero-constructed ID.IsNil() = false, want true")
+	}
+
+	// Test equality with Nil
+	if !zero.Equals(Nil) {
+		t.Error("zero ID should equal Nil")
+	}
+}
+
+func TestNil_DirectComparison(t *testing.T) {
+	// Test direct == comparison with Nil
+	var id Nano64
+	if id != Nil {
+		t.Error("zero-value ID should == Nil")
+	}
+
+	// Test direct != comparison with Nil
+	id2, err := GenerateDefault()
+	if err != nil {
+		t.Fatalf("GenerateDefault() error = %v", err)
+	}
+	if id2 == Nil {
+		t.Error("generated ID should != Nil")
+	}
+
+	// Test direct comparison between two IDs
+	id3, err := GenerateDefault()
+	if err != nil {
+		t.Fatalf("GenerateDefault() error = %v", err)
+	}
+
+	if id2 == id3 {
+		t.Error("two different generated IDs should not be equal (extremely unlikely)")
+	}
+
+	// Test self-comparison via copy
+	id2Copy := id2
+	if id2 != id2Copy {
+		t.Error("ID should == its copy")
+	}
+
+	// Test comparison of zero-constructed IDs
+	zero1 := Nano64{}
+	zero2 := Nano64{}
+	if zero1 != zero2 {
+		t.Error("two zero-constructed IDs should be equal")
+	}
+
+	// Test that zero-constructed ID equals Nil
+	if zero1 != Nil {
+		t.Error("zero-constructed ID should equal Nil")
+	}
+}
+
+func TestNullNano64_Scan(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     interface{}
+		wantValid bool
+		wantError bool
+	}{
+		{"nil value", nil, false, false},
+		{"uint64 value", uint64(12345), true, false},
+		{"int64 value", int64(12345), true, false},
+		{"bytes value", []byte{0, 0, 0, 0, 0, 0, 0x30, 0x39}, true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var n NullNano64
+			err := n.Scan(tt.input)
+
+			if (err != nil) != tt.wantError {
+				t.Errorf("Scan() error = %v, wantError %v", err, tt.wantError)
+				return
+			}
+
+			if n.Valid != tt.wantValid {
+				t.Errorf("Valid = %v, want %v", n.Valid, tt.wantValid)
+			}
+
+			if !tt.wantValid && !n.ID.IsNil() {
+				t.Error("Invalid NullNano64 should have Nil ID")
+			}
+		})
+	}
+}
+
+func TestNullNano64_Value(t *testing.T) {
+	// Test valid NullNano64
+	id, err := GenerateDefault()
+	if err != nil {
+		t.Fatalf("GenerateDefault() error = %v", err)
+	}
+
+	validNull := NullNano64{ID: id, Valid: true}
+	val, err := validNull.Value()
+	if err != nil {
+		t.Fatalf("Value() error = %v", err)
+	}
+	if val == nil {
+		t.Error("Valid NullNano64.Value() should not be nil")
+	}
+
+	// Test invalid NullNano64
+	invalidNull := NullNano64{Valid: false}
+	val, err = invalidNull.Value()
+	if err != nil {
+		t.Fatalf("Value() error = %v", err)
+	}
+	if val != nil {
+		t.Errorf("Invalid NullNano64.Value() = %v, want nil", val)
+	}
+}
+
+func TestNullNano64_JSON(t *testing.T) {
+	// Test marshaling valid NullNano64
+	id, err := GenerateDefault()
+	if err != nil {
+		t.Fatalf("GenerateDefault() error = %v", err)
+	}
+
+	validNull := NullNano64{ID: id, Valid: true}
+	data, err := json.Marshal(validNull)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	var unmarshaled NullNano64
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+
+	if !unmarshaled.Valid {
+		t.Error("Unmarshaled NullNano64 should be valid")
+	}
+	if !unmarshaled.ID.Equals(id) {
+		t.Error("Unmarshaled ID does not match original")
+	}
+
+	// Test marshaling invalid NullNano64
+	invalidNull := NullNano64{Valid: false}
+	data, err = json.Marshal(invalidNull)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if string(data) != "null" {
+		t.Errorf("Invalid NullNano64 marshaled to %s, want null", string(data))
+	}
+
+	// Test unmarshaling null
+	var nullUnmarshaled NullNano64
+	if err := json.Unmarshal([]byte("null"), &nullUnmarshaled); err != nil {
+		t.Fatalf("Unmarshal(null) error = %v", err)
+	}
+	if nullUnmarshaled.Valid {
+		t.Error("Unmarshaled null should be invalid")
+	}
+}
+
+func TestNullNano64_Database(t *testing.T) {
+	// Create in-memory SQLite database
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test.db")
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create test table
+	_, err = db.Exec(`
+		CREATE TABLE test_null (
+			id INTEGER PRIMARY KEY,
+			nullable_id BLOB,
+			non_null_id BLOB NOT NULL
+		)
+	`)
+	if err != nil {
+		t.Fatalf("failed to create table: %v", err)
+	}
+
+	// Test inserting NULL value
+	nullID := NullNano64{Valid: false}
+	validID, err := GenerateDefault()
+	if err != nil {
+		t.Fatalf("GenerateDefault() error = %v", err)
+	}
+	validNullID := NullNano64{ID: validID, Valid: true}
+
+	_, err = db.Exec("INSERT INTO test_null (id, nullable_id, non_null_id) VALUES (?, ?, ?)",
+		1, nullID, validNullID)
+	if err != nil {
+		t.Fatalf("failed to insert: %v", err)
+	}
+
+	// Test querying NULL value
+	var retrievedNull NullNano64
+	var retrievedValid NullNano64
+	err = db.QueryRow("SELECT nullable_id, non_null_id FROM test_null WHERE id = ?", 1).
+		Scan(&retrievedNull, &retrievedValid)
+	if err != nil {
+		t.Fatalf("failed to query: %v", err)
+	}
+
+	if retrievedNull.Valid {
+		t.Error("Retrieved null ID should be invalid")
+	}
+
+	if !retrievedValid.Valid {
+		t.Error("Retrieved valid ID should be valid")
+	}
+
+	if !retrievedValid.ID.Equals(validID) {
+		t.Error("Retrieved ID does not match original")
+	}
+}
